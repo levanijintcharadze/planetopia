@@ -1,0 +1,553 @@
+<!doctype html>
+<html lang="ka">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Planetopia</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="ინტერაქტიული მზის სისტემა ბავშვებისთვის: პლანეტები და მათი მთვარეები ორბიტებზე.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@400;600;800;900&display=swap">
+<style>
+/* Layout: full-screen night-sky canvas; floating glass controls at the top, planet picker along the bottom, a fact card that rises above it. Single deliberate dark look. */
+:root {
+  --sky: #070b24;
+  --sky-deep: #03051a;
+  --panel: rgba(20, 27, 72, 0.86);
+  --panel-line: rgba(160, 175, 255, 0.18);
+  --ink: #eef1ff;
+  --ink-soft: #a7b0e3;
+  --sun: #ffc94a;
+  --sun-ink: #2a1a00;
+  --chip: rgba(255, 255, 255, 0.07);
+  --font-display: "Noto Sans Georgian", "Sylfaen", system-ui, sans-serif;
+  --font-body: "Noto Sans Georgian", "Sylfaen", system-ui, sans-serif;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--sky);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+canvas#sky { position: fixed; inset: 0; width: 100%; height: 100%; display: block; cursor: pointer; }
+
+.top {
+  position: fixed; top: 0; left: 0; right: 0;
+  padding-top: calc(12px + env(safe-area-inset-top, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  pointer-events: none;
+}
+.brand { pointer-events: auto; min-width: 0; }
+.brand h1 {
+  margin: 0; font-family: var(--font-display); font-weight: 900; font-size: 1.6rem; letter-spacing: 0.01em;
+  color: var(--sun); line-height: 1.1;
+}
+.brand p { margin: 2px 0 0; color: var(--ink-soft); font-size: 0.85rem; }
+.controls { display: flex; gap: 8px; flex-wrap: wrap; pointer-events: auto; }
+.btn {
+  font: inherit; font-weight: 600; font-size: 0.9rem;
+  color: var(--ink); background: var(--panel); border: 1px solid var(--panel-line);
+  border-radius: 999px; padding: 8px 14px; min-height: 40px; cursor: pointer;
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+}
+.btn[aria-pressed="true"] { background: var(--sun); color: var(--sun-ink); border-color: var(--sun); }
+.btn:focus-visible, .chip:focus-visible, .moon:focus-visible { outline: 3px solid var(--sun); outline-offset: 2px; }
+.btn.back { background: var(--sun); color: var(--sun-ink); border-color: var(--sun); }
+
+.bottom {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 10px; pointer-events: none;
+}
+.card {
+  pointer-events: auto; align-self: flex-start;
+  width: 100%; max-width: 420px; box-sizing: border-box;
+  background: var(--panel); border: 1px solid var(--panel-line); border-radius: 20px;
+  padding: 16px 18px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  max-height: 46vh; overflow-y: auto;
+}
+.card-head { display: flex; align-items: center; gap: 12px; }
+.swatch { width: 40px; height: 40px; border-radius: 50%; flex: none; }
+.card-head > div { min-width: 0; flex: 1; }
+.card h2 { margin: 0; font-family: var(--font-display); font-weight: 800; font-size: 1.35rem; line-height: 1.2; text-wrap: balance; }
+.tag { margin: 2px 0 0; color: var(--sun); font-weight: 600; font-size: 0.9rem; }
+.close {
+  flex: none; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--panel-line);
+  background: var(--chip); color: var(--ink); font-size: 1.1rem; cursor: pointer; font-family: inherit;
+}
+.facts { margin: 12px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.facts li { display: grid; grid-template-columns: 20px 1fr; gap: 8px; line-height: 1.45; }
+.facts li::before { content: "★"; color: var(--sun); font-size: 0.85rem; padding-top: 2px; }
+.stats { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.stat { background: var(--chip); border-radius: 12px; padding: 6px 10px; font-size: 0.8rem; color: var(--ink-soft); }
+.stat b { color: var(--ink); font-weight: 800; font-variant-numeric: tabular-nums; }
+.moons-title { margin: 14px 0 6px; font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); font-weight: 600; }
+.moons { display: flex; gap: 6px; flex-wrap: wrap; }
+.moon {
+  font: inherit; font-size: 0.85rem; font-weight: 600; color: var(--ink); background: var(--chip);
+  border: 1px solid var(--panel-line); border-radius: 999px; padding: 6px 12px; min-height: 34px; cursor: pointer;
+}
+.moon[aria-pressed="true"] { background: var(--ink); color: var(--sky); }
+.moon-fact { margin: 10px 0 0; padding: 10px 12px; background: var(--chip); border-radius: 12px; line-height: 1.45; font-size: 0.92rem; }
+.no-moons { margin: 0; color: var(--ink-soft); font-size: 0.9rem; }
+
+.picker {
+  pointer-events: auto; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none;
+  padding: 2px; margin: 0 -2px;
+}
+.picker::-webkit-scrollbar { display: none; }
+.chip {
+  flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  font: inherit; font-size: 0.78rem; font-weight: 600; color: var(--ink);
+  background: var(--panel); border: 1px solid var(--panel-line); border-radius: 16px;
+  padding: 8px 10px; min-width: 64px; cursor: pointer;
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+}
+.chip .dot { width: 22px; height: 22px; border-radius: 50%; }
+.chip[aria-pressed="true"] { border-color: var(--sun); box-shadow: 0 0 0 2px var(--sun) inset; }
+
+@media (min-width: 760px) {
+  .brand h1 { font-size: 2rem; }
+  .bottom { flex-direction: column-reverse; }
+  .card { position: fixed; top: calc(90px + env(safe-area-inset-top, 0px)); left: max(16px, env(safe-area-inset-left, 0px)); max-height: calc(100% - 210px); }
+  .picker { justify-content: center; }
+}
+</style>
+</head>
+<body>
+<canvas id="sky" aria-label="მზის სისტემის რუკა. დააჭირე პლანეტას." role="img"></canvas>
+
+<header class="top">
+  <div class="brand">
+    <h1>Planetopia</h1>
+    <p>დააჭირე პლანეტას და გაიცანი მისი მთვარეები</p>
+  </div>
+  <div class="controls">
+    <button class="btn back" id="back" type="button" hidden>← მთელი სისტემა</button>
+    <button class="btn" id="pause" type="button" aria-pressed="false">⏸ პაუზა</button>
+    <button class="btn" id="speed" type="button" aria-label="სიჩქარე">სიჩქარე: 1×</button>
+    <button class="btn" id="orbits" type="button" aria-pressed="true">ორბიტები</button>
+  </div>
+</header>
+
+<div class="bottom">
+  <section class="card" id="card" hidden aria-live="polite"></section>
+  <nav class="picker" id="picker" aria-label="პლანეტები"></nav>
+</div>
+
+<script>
+(() => {
+  // ---------- Data ----------
+  // dist / r / moon d are in "map units" (not to scale, sized so kids can see everything).
+  // period: real orbital period (planets in Earth years, moons in days); compressed for the animation.
+  const SUN = {
+    id: "sun", name: "მზე", tag: "ჩვენი ვარსკვლავი", color: "#ffc94a", r: 26,
+    facts: [
+      "მზე ვარსკვლავია, ცხელი აირის უზარმაზარი ბურთი.",
+      "მზეში დაახლოებით 1 300 000 დედამიწა ჩაეტეოდა.",
+      "მზის სინათლე დედამიწამდე დაახლოებით 8 წუთში აღწევს."
+    ],
+    stats: [["ზედაპირი", "≈5500 °C"], ["პლანეტები", "8"]],
+    moons: []
+  };
+
+  const PLANETS = [
+    { id: "mercury", name: "მერკური", tag: "მზესთან ყველაზე ახლოს", color: "#b9b1a6", dist: 56, r: 4, period: 0.24, a0: 0.4,
+      facts: ["მზის სისტემის ყველაზე პატარა პლანეტაა.", "მზის გარშემო ერთ წრეს მხოლოდ 88 დღეში აკეთებს.", "ჰაერი თითქმის არ აქვს, ამიტომ დღისით ძალიან ცხელა, ღამით კი ძალიან ცივა."],
+      stats: [["წელიწადი", "88 დღე"], ["მთვარეები", "0"]], moons: [] },
+    { id: "venus", name: "ვენერა", tag: "ყველაზე ცხელი პლანეტა", color: "#e8c27a", dist: 82, r: 7, period: 0.62, a0: 2.1,
+      facts: ["ზედაპირზე დაახლოებით 465 °C-ია. ტყვიაც კი დადნებოდა.", "სხვა პლანეტების უმეტესობის საპირისპიროდ ბრუნავს.", "ვენერაზე ერთი დღე მის ერთ წელიწადზე გრძელია."],
+      stats: [["წელიწადი", "225 დღე"], ["მთვარეები", "0"]], moons: [] },
+    { id: "earth", name: "დედამიწა", tag: "ჩვენი სახლი", color: "#3f8ff0", dist: 110, r: 7.5, period: 1, a0: 4.0,
+      facts: ["ერთადერთი პლანეტაა, სადაც სიცოცხლე ვიცით.", "ზედაპირის დაახლოებით 70% წყალია.", "მზის გარშემო ერთ წრეს 365 დღეში აკეთებს. ეს ერთი წელიწადია."],
+      stats: [["წელიწადი", "365 დღე"], ["მთვარეები", "1"]],
+      moons: [ { name: "მთვარე", d: 17, r: 2.2, period: 27.3, color: "#dcdcdc", fact: "დედამიწის ერთადერთი თანამგზავრია. 1969 წელს ადამიანმა მასზე პირველად დადგა ფეხი." } ] },
+    { id: "mars", name: "მარსი", tag: "წითელი პლანეტა", color: "#d4623a", dist: 140, r: 5.5, period: 1.88, a0: 5.4,
+      facts: ["წითელ ფერს ჟანგიანი მტვერი აძლევს.", "აქ არის ოლიმპის მთა, მზის სისტემის უმაღლესი ვულკანი. ევერესტზე დაახლოებით 2,5-ჯერ მაღალია.", "მარსზე რობოტი-როვერები დასეირნობენ და ქვებს იკვლევენ."],
+      stats: [["წელიწადი", "687 დღე"], ["მთვარეები", "2"]],
+      moons: [
+        { name: "ფობოსი", d: 10, r: 1.0, period: 0.32, color: "#a8988a", fact: "ძალიან სწრაფია: მარსის გარშემო დღეში სამჯერ შემოუვლის." },
+        { name: "დეიმოსი", d: 14, r: 0.85, period: 1.26, color: "#c2b5a5", fact: "პაწაწინაა, დაახლოებით 12 კილომეტრის სიგანის." }
+      ] },
+    { id: "jupiter", name: "იუპიტერი", tag: "პლანეტების გიგანტი", color: "#d9b38c", dist: 205, r: 17, period: 11.86, a0: 1.2,
+      facts: ["ყველაზე დიდი პლანეტაა. მასში 1300-ზე მეტი დედამიწა ჩაეტეოდა.", "დიდი წითელი ლაქა უზარმაზარი ქარიშხალია, დედამიწაზე დიდი.", "მყარი ზედაპირი არ აქვს, მთლიანად აირისგან შედგება."],
+      stats: [["წელიწადი", "12 წელი"], ["მთვარეები", "90+"]],
+      moons: [
+        { name: "იო", d: 24, r: 1.8, period: 1.77, color: "#f2d24b", fact: "მზის სისტემის ყველაზე ვულკანური ადგილია." },
+        { name: "ევროპა", d: 30, r: 1.6, period: 3.55, color: "#e9dcc3", fact: "ყინულის ქერქის ქვეშ დიდი ოკეანე იმალება." },
+        { name: "განიმედე", d: 36, r: 2.5, period: 7.15, color: "#a89c8c", fact: "მზის სისტემის ყველაზე დიდი მთვარეა. მერკურიზეც დიდია!" },
+        { name: "კალისტო", d: 43, r: 2.3, period: 16.7, color: "#7a7062", fact: "მთლიანად კრატერებითაა დაფარული." }
+      ] },
+    { id: "saturn", name: "სატურნი", tag: "რგოლების მეფე", color: "#e6cf8f", dist: 292, r: 14, period: 29.46, a0: 3.3, rings: true,
+      facts: ["რგოლები ყინულისა და ქვის მილიარდობით ნატეხისგან შედგება.", "ისეთი მსუბუქია, რომ უზარმაზარ აუზში წყალზე იტივტივებდა.", "200-ზე მეტი მთვარე ჰყავს, ყველა პლანეტაზე მეტი."],
+      stats: [["წელიწადი", "29 წელი"], ["მთვარეები", "200+"]],
+      moons: [
+        { name: "ენცელადი", d: 24, r: 0.95, period: 1.37, color: "#ffffff", fact: "ყინულის შადრევნებს პირდაპირ კოსმოსში ისვრის." },
+        { name: "რეა", d: 30, r: 1.3, period: 4.52, color: "#cfc8bc", fact: "სატურნის მეორე უდიდესი მთვარეა, ყინულისა და ქვისგან." },
+        { name: "ტიტანი", d: 39, r: 2.4, period: 15.9, color: "#e0a13c", fact: "სქელი ნარინჯისფერი ჰაერი და მეთანის ტბები აქვს." }
+      ] },
+    { id: "uranus", name: "ურანი", tag: "გვერდზე წამოწოლილი პლანეტა", color: "#8fe0e6", dist: 362, r: 10, period: 84, a0: 0.2,
+      facts: ["გვერდზე წამოწოლილი ბრუნავს, თითქოს ბურთივით გორავს.", "ცისფერ-მწვანე ფერს მეთანის აირი აძლევს.", "მზის გარშემო ერთ წრეს 84 წელიწადში აკეთებს."],
+      stats: [["წელიწადი", "84 წელი"], ["მთვარეები", "28+"]],
+      moons: [
+        { name: "მირანდა", d: 15, r: 0.85, period: 1.41, color: "#bdbdbd", fact: "ზედაპირზე უზარმაზარი კლდეები და ღრმა ხეობებია." },
+        { name: "ტიტანია", d: 21, r: 1.4, period: 8.7, color: "#c9bfb3", fact: "ურანის ყველაზე დიდი მთვარეა." },
+        { name: "ობერონი", d: 27, r: 1.3, period: 13.5, color: "#a69b91", fact: "ურანის დიდი მთვარეებიდან ყველაზე შორსაა და კრატერებითაა სავსე." }
+      ] },
+    { id: "neptune", name: "ნეპტუნი", tag: "ყველაზე შორეული პლანეტა", color: "#4a6cf0", dist: 420, r: 9.5, period: 164.8, a0: 5.0,
+      facts: ["აქ ყველაზე ძლიერი ქარები ქრის, 2000 კმ/სთ-ზე მეტი.", "მზის გარშემო ერთ წრეს დაახლოებით 165 წელიწადში აკეთებს.", "ტელესკოპის გარეშე ვერ დაინახავ, ისე შორსაა."],
+      stats: [["წელიწადი", "165 წელი"], ["მთვარეები", "16"]],
+      moons: [ { name: "ტრიტონი", d: 18, r: 1.6, period: -5.88, color: "#e3d6d0", fact: "პლანეტის საპირისპიროდ, უკუღმა ბრუნავს და ყინულის გეიზერები აქვს." } ] }
+  ];
+  const BODIES = [SUN, ...PLANETS];
+  const WORLD_EXTENT = 450;
+
+  // ---------- State ----------
+  const reduceMotion = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const SPEEDS = [0.5, 1, 3, 8];
+  let speedIdx = reduceMotion ? 0 : 1;
+  let paused = false, showOrbits = true;
+  let simT = 0;               // simulated seconds of animation
+  let selected = null;        // body id or null
+  let selectedMoon = null;    // moon object
+  const cam = { x: 0, y: 0, s: 1 };
+  let camInit = false;
+
+  const planetPeriodS = p => 14 * Math.pow(p, 0.55);
+  const moonPeriodS = d => 1.3 * Math.pow(Math.abs(d), 0.45) * Math.sign(d);
+
+  function planetPos(p) {
+    const a = p.a0 + (simT / planetPeriodS(p.period)) * Math.PI * 2;
+    return { x: Math.cos(a) * p.dist, y: Math.sin(a) * p.dist };
+  }
+  function moonPos(p, pp, m, i) {
+    const a = i * 2.1 + (simT / moonPeriodS(m.period)) * Math.PI * 2;
+    return { x: pp.x + Math.cos(a) * m.d, y: pp.y + Math.sin(a) * m.d };
+  }
+
+  // ---------- Canvas ----------
+  const cv = document.getElementById("sky");
+  const ctx = cv.getContext("2d");
+  let W = 0, H = 0, DPR = 1;
+  const stars = [];
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth; H = window.innerHeight;
+    cv.width = W * DPR; cv.height = H * DPR;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    stars.length = 0;
+    const n = Math.round((W * H) / 2600);
+    for (let i = 0; i < n; i++) stars.push({ x: Math.random() * W, y: Math.random() * H, r: Math.random() * 1.2 + 0.2, t: Math.random() * 6.28, sp: 0.5 + Math.random() * 1.5 });
+  }
+
+  // Free view area (excluding header and bottom UI)
+  function viewBox() {
+    const wide = W >= 760;
+    const top = (wide ? 80 : 110);
+    const cardEl = document.getElementById("card");
+    const pickerH = 80;
+    let bottom = pickerH + 16;
+    if (!wide && !cardEl.hidden) bottom += Math.min(cardEl.offsetHeight + 10, H * 0.46);
+    let left = 0;
+    if (wide && !cardEl.hidden) left = 440;
+    const w = Math.max(120, W - left), h = Math.max(120, H - top - bottom);
+    return { cx: left + w / 2, cy: top + h / 2, w, h };
+  }
+
+  function targetCam() {
+    const vb = viewBox();
+    const fit = Math.min(vb.w, vb.h) / 2;
+    if (!selected || selected === "sun") {
+      const s = selected === "sun" ? fit / 70 : fit / WORLD_EXTENT;
+      return { x: 0, y: 0, s, vb };
+    }
+    const p = PLANETS.find(q => q.id === selected);
+    const pp = planetPos(p);
+    const ext = p.moons.length ? Math.max(...p.moons.map(m => m.d)) + 6 : p.r * 5;
+    return { x: pp.x, y: pp.y, s: (fit * 0.85) / ext, vb };
+  }
+
+  const toScreen = (x, y, vb) => ({ x: (x - cam.x) * cam.s + vb.cx, y: (y - cam.y) * cam.s + vb.cy });
+
+  function drawBody(x, y, rad, color, lightFrom) {
+    // lit from the sun: highlight toward the sun, shadow away from it
+    let lx = x, ly = y;
+    if (lightFrom) {
+      const dx = lightFrom.x - x, dy = lightFrom.y - y, len = Math.hypot(dx, dy) || 1;
+      lx = x + (dx / len) * rad * 0.45; ly = y + (dy / len) * rad * 0.45;
+    }
+    const g = ctx.createRadialGradient(lx, ly, rad * 0.1, x, y, rad);
+    g.addColorStop(0, shade(color, 40));
+    g.addColorStop(0.6, color);
+    g.addColorStop(1, shade(color, -55));
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.fill();
+  }
+  function shade(hex, amt) {
+    const n = parseInt(hex.slice(1), 16);
+    const c = v => Math.max(0, Math.min(255, v + amt));
+    return `rgb(${c(n >> 16)},${c((n >> 8) & 255)},${c(n & 255)})`;
+  }
+
+  function drawPlanetDetails(p, x, y, rad) {
+    ctx.save();
+    ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.clip();
+    if (p.id === "jupiter" || p.id === "saturn") {
+      ctx.globalAlpha = p.id === "jupiter" ? 0.28 : 0.16;
+      ctx.fillStyle = p.id === "jupiter" ? "#7a4a2a" : "#9a7a3a";
+      [-0.55, -0.25, 0.1, 0.42].forEach((b, i) => ctx.fillRect(x - rad, y + b * rad, rad * 2, rad * (i % 2 ? 0.12 : 0.18)));
+      if (p.id === "jupiter" && rad > 6) {
+        ctx.globalAlpha = 0.8; ctx.fillStyle = "#c1462c";
+        ctx.beginPath(); ctx.ellipse(x + rad * 0.3, y + rad * 0.28, rad * 0.22, rad * 0.12, 0, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    if (p.id === "earth" && rad > 3) {
+      ctx.globalAlpha = 0.85; ctx.fillStyle = "#3fae5a";
+      [[-0.35, -0.2, 0.35, 0.25], [0.3, 0.15, 0.3, 0.35], [-0.1, 0.45, 0.25, 0.15]].forEach(([dx, dy, rx, ry]) => {
+        ctx.beginPath(); ctx.ellipse(x + dx * rad, y + dy * rad, rx * rad, ry * rad, 0.5, 0, Math.PI * 2); ctx.fill();
+      });
+      ctx.fillStyle = "#ffffff"; ctx.globalAlpha = 0.7;
+      ctx.beginPath(); ctx.ellipse(x, y - rad * 0.92, rad * 0.45, rad * 0.14, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    if (p.id === "mars" && rad > 3) {
+      ctx.globalAlpha = 0.25; ctx.fillStyle = "#5a1e0e";
+      ctx.beginPath(); ctx.ellipse(x - rad * 0.2, y + rad * 0.1, rad * 0.4, rad * 0.2, 0.3, 0, Math.PI * 2); ctx.fill();
+    }
+    // night side
+    ctx.globalAlpha = 1;
+    const dx = -x + sunScreen.x, dy = -y + sunScreen.y, len = Math.hypot(dx, dy) || 1;
+    const sx = x - (dx / len) * rad * 0.9, sy = y - (dy / len) * rad * 0.9;
+    const sg = ctx.createRadialGradient(sx, sy, 0, sx, sy, rad * 1.5);
+    sg.addColorStop(0, "rgba(3,5,26,0.75)"); sg.addColorStop(1, "rgba(3,5,26,0)");
+    ctx.fillStyle = sg; ctx.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+    ctx.restore();
+  }
+
+  function drawRings(x, y, rad, half) {
+    // half: "back" draws the upper arc (behind the planet), "front" the lower arc
+    const a0 = half === "back" ? Math.PI : 0, a1 = half === "back" ? Math.PI * 2 : Math.PI;
+    [[2.25, 0.9, "rgba(230,207,143,0.55)", 0.17], [1.85, 0.75, "rgba(210,185,120,0.75)", 0.12], [1.45, 0.58, "rgba(240,225,180,0.4)", 0.08]].forEach(([rx, ry, c, w]) => {
+      ctx.strokeStyle = c; ctx.lineWidth = Math.max(1, rad * w * 2);
+      ctx.beginPath(); ctx.ellipse(x, y, rad * rx, rad * ry * 0.45, -0.35, a0, a1); ctx.stroke();
+    });
+  }
+
+  let sunScreen = { x: 0, y: 0 };
+  const hitList = [];
+
+  function frame(now) {
+    const dt = Math.min(0.05, (now - (frame.last || now)) / 1000);
+    frame.last = now;
+    if (!paused) simT += dt * SPEEDS[speedIdx];
+
+    const tc = targetCam();
+    if (!camInit) { cam.x = tc.x; cam.y = tc.y; cam.s = tc.s; camInit = true; }
+    const k = 1 - Math.pow(0.0015, dt);
+    cam.x += (tc.x - cam.x) * k; cam.y += (tc.y - cam.y) * k;
+    cam.s *= Math.pow(tc.s / cam.s, k);
+    const vb = tc.vb;
+
+    // background
+    const bg = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.75);
+    bg.addColorStop(0, "#0d1440"); bg.addColorStop(1, "#03051a");
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    for (const s of stars) {
+      const tw = reduceMotion ? 0.8 : 0.55 + 0.45 * Math.sin(now / 1000 * s.sp + s.t);
+      ctx.globalAlpha = tw; ctx.fillStyle = "#ffffff";
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    hitList.length = 0;
+    sunScreen = toScreen(0, 0, vb);
+
+    // planet orbits
+    if (showOrbits) {
+      for (const p of PLANETS) {
+        const isSel = p.id === selected;
+        ctx.strokeStyle = isSel ? "rgba(255,201,74,0.55)" : "rgba(167,176,227,0.22)";
+        ctx.lineWidth = isSel ? 1.6 : 1;
+        ctx.beginPath(); ctx.arc(sunScreen.x, sunScreen.y, p.dist * cam.s, 0, Math.PI * 2); ctx.stroke();
+      }
+    }
+
+    // sun with glow
+    const sr = SUN.r * cam.s;
+    const glow = ctx.createRadialGradient(sunScreen.x, sunScreen.y, sr * 0.6, sunScreen.x, sunScreen.y, sr * 3.2);
+    glow.addColorStop(0, "rgba(255,201,74,0.55)"); glow.addColorStop(1, "rgba(255,140,30,0)");
+    ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(sunScreen.x, sunScreen.y, sr * 3.2, 0, Math.PI * 2); ctx.fill();
+    const sg = ctx.createRadialGradient(sunScreen.x - sr * 0.2, sunScreen.y - sr * 0.2, sr * 0.1, sunScreen.x, sunScreen.y, sr);
+    sg.addColorStop(0, "#fff6c8"); sg.addColorStop(0.5, "#ffd24f"); sg.addColorStop(1, "#ff9a1f");
+    ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(sunScreen.x, sunScreen.y, sr, 0, Math.PI * 2); ctx.fill();
+    hitList.push({ kind: "body", id: "sun", x: sunScreen.x, y: sunScreen.y, r: Math.max(sr, 22) });
+    label(SUN.name, sunScreen.x, sunScreen.y + sr + 16, selected === "sun");
+
+    // planets + moons
+    const labelFont = 13;
+    for (const p of PLANETS) {
+      const wp = planetPos(p);
+      const sp = toScreen(wp.x, wp.y, vb);
+      const rad = Math.max(2.5, p.r * cam.s);
+      const isSel = p.id === selected;
+
+      // moon orbits
+      const moonScale = cam.s;
+      const showMoons = p.moons.length && (isSel || moonScale * p.moons[0].d > 7);
+      if (showMoons && showOrbits) {
+        for (const m of p.moons) {
+          ctx.strokeStyle = isSel ? "rgba(238,241,255,0.28)" : "rgba(238,241,255,0.12)";
+          ctx.lineWidth = 1;
+          ctx.setLineDash(isSel ? [4, 5] : []);
+          ctx.beginPath(); ctx.arc(sp.x, sp.y, m.d * moonScale, 0, Math.PI * 2); ctx.stroke();
+        }
+        ctx.setLineDash([]);
+      }
+
+      if (p.rings) drawRings(sp.x, sp.y, rad, "back");
+      drawBody(sp.x, sp.y, rad, p.color, sunScreen);
+      if (rad > 3) drawPlanetDetails(p, sp.x, sp.y, rad);
+      if (p.rings) drawRings(sp.x, sp.y, rad, "front");
+      if (isSel) {
+        ctx.strokeStyle = "rgba(255,201,74,0.9)"; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(sp.x, sp.y, rad + 6, 0, Math.PI * 2); ctx.stroke();
+      }
+      hitList.push({ kind: "body", id: p.id, x: sp.x, y: sp.y, r: Math.max(rad + 6, 20) });
+
+      if (showMoons) {
+        p.moons.forEach((m, i) => {
+          const wm = moonPos(p, wp, m, i);
+          const sm = toScreen(wm.x, wm.y, vb);
+          const mr = Math.max(1.4, m.r * moonScale);
+          drawBody(sm.x, sm.y, mr, m.color, sunScreen);
+          if (isSel) {
+            if (selectedMoon === m) {
+              ctx.strokeStyle = "rgba(255,201,74,0.95)"; ctx.lineWidth = 2;
+              ctx.beginPath(); ctx.arc(sm.x, sm.y, mr + 5, 0, Math.PI * 2); ctx.stroke();
+            }
+            label(m.name, sm.x, sm.y + mr + 14, selectedMoon === m, 12);
+            hitList.push({ kind: "moon", planet: p, moon: m, x: sm.x, y: sm.y, r: Math.max(mr + 6, 18) });
+          }
+        });
+      }
+      if (!isSel || !p.moons.length) label(p.name, sp.x, sp.y + rad + 15, isSel, labelFont);
+      else label(p.name, sp.x, sp.y - rad - (p.rings ? rad * 0.6 : 0) - 10, true, 15);
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  function label(text, x, y, strong, size = 13) {
+    if (x < -50 || x > W + 50 || y < -20 || y > H + 20) return;
+    ctx.font = `${strong ? 800 : 600} ${size}px "Noto Sans Georgian", Sylfaen, sans-serif`;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.lineWidth = 4; ctx.strokeStyle = "rgba(3,5,26,0.85)"; ctx.strokeText(text, x, y);
+    ctx.fillStyle = strong ? "#ffc94a" : "rgba(238,241,255,0.88)"; ctx.fillText(text, x, y);
+  }
+
+  // ---------- UI ----------
+  const card = document.getElementById("card");
+  const picker = document.getElementById("picker");
+  const backBtn = document.getElementById("back");
+
+  BODIES.forEach(b => {
+    const btn = document.createElement("button");
+    btn.className = "chip"; btn.type = "button"; btn.dataset.id = b.id;
+    btn.setAttribute("aria-pressed", "false");
+    btn.innerHTML = `<span class="dot" style="background: radial-gradient(circle at 35% 35%, ${shade(b.color, 50)}, ${b.color} 60%, ${shade(b.color, -50)})"></span><span>${b.name}</span>`;
+    btn.addEventListener("click", () => select(selected === b.id ? null : b.id));
+    picker.appendChild(btn);
+  });
+
+  function select(id, moon = null) {
+    selected = id; selectedMoon = moon;
+    backBtn.hidden = !id;
+    picker.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", String(c.dataset.id === id)));
+    if (!id) { card.hidden = true; card.innerHTML = ""; return; }
+    const b = BODIES.find(x => x.id === id);
+    renderCard(b);
+    const chip = picker.querySelector(`[data-id="${id}"]`);
+    if (chip && chip.scrollIntoView) chip.scrollIntoView({ inline: "center", block: "nearest", behavior: reduceMotion ? "auto" : "smooth" });
+  }
+
+  function renderCard(b) {
+    const stats = b.stats.map(([k, v]) => `<span class="stat">${k}: <b>${v}</b></span>`).join("");
+    let moons = "";
+    if (b.id !== "sun") {
+      if (b.moons.length) {
+        moons = `<p class="moons-title">მთვარეები</p><div class="moons">` +
+          b.moons.map((m, i) => `<button class="moon" type="button" data-i="${i}" aria-pressed="${selectedMoon === m}">${m.name}</button>`).join("") +
+          `</div>` + (selectedMoon ? `<p class="moon-fact"><b>${selectedMoon.name}:</b> ${selectedMoon.fact}</p>` : "");
+      } else {
+        moons = `<p class="moons-title">მთვარეები</p><p class="no-moons">ამ პლანეტას მთვარე არ ჰყავს.</p>`;
+      }
+    }
+    card.innerHTML = `
+      <div class="card-head">
+        <span class="swatch" style="background: radial-gradient(circle at 35% 35%, ${shade(b.color, 50)}, ${b.color} 60%, ${shade(b.color, -50)})"></span>
+        <div><h2>${b.name}</h2><p class="tag">${b.tag}</p></div>
+        <button class="close" type="button" aria-label="დახურვა">✕</button>
+      </div>
+      <ul class="facts">${b.facts.map(f => `<li><span>${f}</span></li>`).join("")}</ul>
+      <div class="stats">${stats}</div>
+      ${moons}`;
+    card.hidden = false;
+    card.querySelector(".close").addEventListener("click", () => select(null));
+    card.querySelectorAll(".moon").forEach(btn => btn.addEventListener("click", () => {
+      const m = b.moons[+btn.dataset.i];
+      selectedMoon = selectedMoon === m ? null : m;
+      renderCard(b);
+    }));
+  }
+
+  backBtn.addEventListener("click", () => select(null));
+  const pauseBtn = document.getElementById("pause");
+  pauseBtn.addEventListener("click", () => {
+    paused = !paused;
+    pauseBtn.setAttribute("aria-pressed", String(paused));
+    pauseBtn.textContent = paused ? "▶ გაგრძელება" : "⏸ პაუზა";
+  });
+  const speedBtn = document.getElementById("speed");
+  const speedLabel = () => { const s = SPEEDS[speedIdx]; speedBtn.textContent = `სიჩქარე: ${s === 0.5 ? "½" : s}×`; };
+  speedBtn.addEventListener("click", () => { speedIdx = (speedIdx + 1) % SPEEDS.length; speedLabel(); });
+  speedLabel();
+  const orbitBtn = document.getElementById("orbits");
+  orbitBtn.addEventListener("click", () => { showOrbits = !showOrbits; orbitBtn.setAttribute("aria-pressed", String(showOrbits)); });
+
+  // tap on the map
+  let down = null;
+  cv.addEventListener("pointerdown", e => { down = { x: e.clientX, y: e.clientY }; });
+  cv.addEventListener("pointerup", e => {
+    if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 10) { down = null; return; }
+    down = null;
+    let best = null, bestD = Infinity;
+    for (const h of hitList) {
+      const d = Math.hypot(e.clientX - h.x, e.clientY - h.y);
+      if (d <= h.r && d < bestD) { best = h; bestD = d; }
+    }
+    if (!best) { if (selected) select(null); return; }
+    if (best.kind === "moon") { selectedMoon = selectedMoon === best.moon ? null : best.moon; renderCard(best.planet); }
+    else select(best.id);
+  });
+  window.addEventListener("keydown", e => {
+    if (e.key === "Escape") select(null);
+    if (e.key === " " && e.target === document.body) { e.preventDefault(); pauseBtn.click(); }
+  });
+
+  window.addEventListener("resize", resize);
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
